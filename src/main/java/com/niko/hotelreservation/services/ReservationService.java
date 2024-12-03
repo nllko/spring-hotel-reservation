@@ -34,9 +34,7 @@ public class ReservationService {
 
   public Reservation reserveRoomByDates(ReservationDTO reservationDTO) {
     if (isRoomAvailable(
-        reservationDTO.getRoomId(),
-        reservationDTO.getCheckInDate(),
-        reservationDTO.getCheckOutDate())) {
+        reservationDTO.getRoomId(), reservationDTO.getCheckIn(), reservationDTO.getCheckOut())) {
       return reservationRepository.save(reservationDTO.toEntity());
     }
     return null;

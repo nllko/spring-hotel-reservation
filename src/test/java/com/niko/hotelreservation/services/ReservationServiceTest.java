@@ -14,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,10 +22,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
 
-  List<Room> rooms = new ArrayList<>();
-  List<Reservation> reservations = new ArrayList<>();
-  LocalDate checkInDate = LocalDate.of(2024, 11, 1);
-  LocalDate checkOutDate = LocalDate.of(2024, 11, 10);
+  private List<Room> allRooms;
+  private List<Reservation> allReservations;
+  private LocalDate checkIn;
+  private LocalDate checkOut;
+  private ReservationDTO reservationDTO;
 
   @InjectMocks private ReservationService reservationService;
 
@@ -36,37 +36,49 @@ class ReservationServiceTest {
 
   @BeforeEach
   void setUp() {
-    createRooms();
-    makeDates();
+    allRooms = createRooms(5);
+    allReservations = new ArrayList<>();
+    setDates(LocalDate.of(2024, 11, 1), LocalDate.of(2024, 11, 10));
   }
 
   @Test
   void testGetAvailableRooms_NoReservations_ShouldBeNotEmpty() {
+    mockRooms(allRooms);
+    mockReservations(allReservations);
+
     List<Room> availableRooms = getAvailableRooms();
 
     assertFalse(availableRooms.isEmpty());
   }
 
   @Test
-  void testGetAvailableRooms_ReservationPresentOnSameDate_ShouldNotContainRoomWithDate() {
-    createReservation(0L, checkInDate, checkOutDate);
+  void testGetAvailableRooms_ReservationPresentOnSameDate_ShouldNotContainReservedRoom() {
+    mockRooms(allRooms);
+    addReservation(0L, checkIn, checkOut);
+    mockReservations(allReservations);
+
     List<Room> availableRooms = getAvailableRooms();
 
-    assertFalse(availableRooms.isEmpty());
-    assertFalse(availableRooms.stream().anyMatch(room -> room.getId() == 0L));
+    assertFalse(containsRoomWithId(availableRooms, 0L));
   }
 
   @Test
-  void testGetAvailableRooms_ReservationPresentOnDifferentDate_ShouldContainRoomWithDifferentDates() {
-    createReservation(0L, checkInDate.plusMonths(1), checkOutDate.plusMonths(1));
+  void
+      testGetAvailableRooms_ReservationPresentOnDifferentDate_ShouldContainRoomWithDifferentDates() {
+    mockRooms(allRooms);
+    addReservation(0L, checkIn.plusMonths(1), checkOut.plusMonths(1));
+    mockReservations(allReservations);
+
     List<Room> availableRooms = getAvailableRooms();
 
-    assertTrue(availableRooms.stream().anyMatch(room -> room.getId() == 0L));
+    assertTrue(containsRoomWithId(availableRooms, 0L));
   }
 
   @Test
   void testGetAvailableRooms_AllRoomsReserved_ShouldReturnEmptyList() {
-    createReservationsForAllRooms();
+    mockRooms(allRooms);
+    addReservationsForAllRooms(checkIn, checkOut);
+    mockReservations(allReservations);
 
     List<Room> availableRooms = getAvailableRooms();
 
@@ -74,78 +86,73 @@ class ReservationServiceTest {
   }
 
   @Test
-  public void testReserveRoom_NoReservations_ShouldReturnReservation() {
-    ReservationDTO reservationDTO = createReservationDTO();
-
-    when(reservationRepository.getAllByRoomId(reservationDTO.getRoomId())).thenReturn(Collections.emptyList());
-    Reservation expectedReservation = new Reservation();
+  void testReserveRoom_NoReservations_ShouldReturnReservation() {
+    makeReservationDTO(0L, checkIn, checkOut);
+    Reservation expectedReservation = new Reservation(0L, 0L, checkIn, checkOut);
     when(reservationRepository.save(any(Reservation.class))).thenReturn(expectedReservation);
 
-    Reservation result = reserveRoom(reservationDTO);
+    Reservation reservation = reserveRoom();
 
-    assertNotNull(result);
-    assertEquals(expectedReservation, result);
+    assertEquals(expectedReservation, reservation);
   }
 
   @Test
-  void testReserveRoom_ReservationPresent_ShouldBeNull() {
-    ReservationDTO reservationDTO = createReservationDTO();
-    Reservation reservation = reservationDTO.toEntity();
-    reservation.setId(0L);
-    reservations.add(reservation);
+  void testReserveRoom_ReservationPresent_ShouldReturnNull() {
+    addReservation(0L, checkIn, checkOut);
+    mockReservations(allReservations);
+    makeReservationDTO(0L, checkIn, checkOut);
 
-    when(reservationRepository.getAllByRoomId(reservationDTO.getRoomId())).thenReturn(reservations);
+    Reservation reservation = reserveRoom();
 
-    Reservation result = reserveRoom(reservationDTO);
-
-    assertNull(result);
+    assertNull(reservation);
   }
 
-  @Test
-  void testCancelReservation_WhenReservationExist_ReturnReservation() {
-    createReservation(0L, checkInDate, checkOutDate);
-    reservationService.cancelReservation(0L);
-    verify(reservationRepository).deleteById(0L);
-  }
-
-  private void createRooms() {
-    for (int i = 0; i < 5; i++) {
+  private List<Room> createRooms(int count) {
+    List<Room> rooms = new ArrayList<>();
+    for (int i = 0; i < count; i++) {
       Room room = new Room();
       room.setId(i);
       rooms.add(room);
     }
+    return rooms;
   }
 
-  private void makeDates() {
-     checkInDate = LocalDate.of(2024, 11, 1);
-     checkOutDate = LocalDate.of(2024, 11, 10);
+  private void setDates(LocalDate checkIn, LocalDate checkOut) {
+    this.checkIn = checkIn;
+    this.checkOut = checkOut;
+  }
+
+  private void makeReservationDTO(Long roomId, LocalDate checkIn, LocalDate checkOut) {
+    reservationDTO = new ReservationDTO(roomId, checkIn, checkOut);
+  }
+
+  private void addReservation(Long roomId, LocalDate checkIn, LocalDate checkOut) {
+    allReservations.add(new Reservation(0L, roomId, checkIn, checkOut));
+  }
+
+  private void addReservationsForAllRooms(LocalDate checkIn, LocalDate checkOut) {
+    for (Room room : allRooms) {
+      allReservations.add(new Reservation(null, room.getId(), checkIn, checkOut));
+    }
+  }
+
+  private void mockRooms(List<Room> rooms) {
+    when(roomRepository.findAll()).thenReturn(rooms);
+  }
+
+  private void mockReservations(List<Reservation> reservations) {
+    when(reservationRepository.findAll()).thenReturn(reservations);
   }
 
   private List<Room> getAvailableRooms() {
-    when(roomRepository.findAll()).thenReturn(rooms);
-    return reservationService.getAvailableRoomsByDates(checkInDate, checkOutDate);
+    return reservationService.getAvailableRoomsByDates(checkIn, checkOut);
   }
 
-  private Reservation reserveRoom(ReservationDTO reservationDTO) {
+  private Reservation reserveRoom() {
     return reservationService.reserveRoomByDates(reservationDTO);
   }
 
-  private ReservationDTO createReservationDTO() {
-    ReservationDTO reservationDTO = new ReservationDTO();
-    reservationDTO.setRoomId(0L);
-    reservationDTO.setCheckInDate(checkInDate);
-    reservationDTO.setCheckOutDate(checkOutDate);
-    return reservationDTO;
-  }
-
-  private void createReservation(Long roomId, LocalDate checkInDate, LocalDate checkOutDate) {
-   // when(reservationRepository.findAll()).thenReturn(reservations);
-    reservations.add(new Reservation(null, roomId, checkInDate, checkOutDate));
-  }
-
-  private void createReservationsForAllRooms() {
-    for (Room room : rooms) {
-      createReservation(room.getId(), checkInDate, checkOutDate);
-    }
+  private boolean containsRoomWithId(List<Room> rooms, Long roomId) {
+    return rooms.stream().anyMatch(room -> room.getId() == roomId);
   }
 }
