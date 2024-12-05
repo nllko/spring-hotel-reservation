@@ -1,9 +1,11 @@
 package com.niko.hotelreservation.constants;
 
 public class Messages {
+  public static final String ROOM_DOES_NOT_EXIST = "Room does not exist";
+
   public static final String RESERVATION_ALREADY_EXISTS = "Reservation with this room and dates already exists";
   public static final String RESERVATION_DELETE_SUCCESS = "Reservation successfully deleted";
-  public static final String RESERVATION_DELETE_DOES_NOT_EXIST = "Reservation does not exist";
+  public static final String RESERVATION_DOES_NOT_EXIST = "Reservation does not exist";
 
   public static final String VALIDATION_ID_EMPTY = "Id can't be null";
   public static final String VALIDATION_ID_NEGATIVE = "Id can't be negative";

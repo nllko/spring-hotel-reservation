@@ -34,6 +34,9 @@ public class ReservationService {
   }
 
   public Reservation reserveRoom(ReservationDTO reservationDTO) {
+    if (!roomRepository.existsById(reservationDTO.getRoomId())) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, ROOM_DOES_NOT_EXIST);
+    }
     boolean isRoomAvailable = !reservationRepository.isRoomReserved(reservationDTO);
     if (!isRoomAvailable) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, RESERVATION_ALREADY_EXISTS);
@@ -43,7 +46,7 @@ public class ReservationService {
 
   public void cancelReservation(Long reservationId) {
     if (!reservationRepository.existsById(reservationId)) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, RESERVATION_DELETE_DOES_NOT_EXIST);
+      throw new ResponseStatusException(HttpStatus.CONFLICT, RESERVATION_DOES_NOT_EXIST);
     }
     reservationRepository.deleteById(reservationId);
   }
