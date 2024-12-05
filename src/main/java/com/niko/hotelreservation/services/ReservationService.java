@@ -1,18 +1,19 @@
 package com.niko.hotelreservation.services;
 
+import com.niko.hotelreservation.DTOs.PeriodDTO;
 import com.niko.hotelreservation.DTOs.ReservationDTO;
 import com.niko.hotelreservation.entities.Reservation;
 import com.niko.hotelreservation.entities.Room;
 import com.niko.hotelreservation.repositories.ReservationRepository;
 import com.niko.hotelreservation.repositories.RoomRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-import static com.niko.hotelreservation.utils.LocalDateUtils.areDatesOverlapping;
+import static com.niko.hotelreservation.constants.Messages.*;
 
 @Service
 public class ReservationService {
@@ -25,41 +26,25 @@ public class ReservationService {
     this.roomRepository = roomRepository;
   }
 
-  public List<Room> getAvailableRoomsByDates(LocalDate checkIn, LocalDate checkOut) {
-    Set<Long> reservedRoomIds = getReservedRoomIds(checkIn, checkOut);
+  public List<Room> getAvailableRooms(PeriodDTO periodDTO) {
+    Set<Long> reservedRoomIds = reservationRepository.findReservedRoomIds(periodDTO);
     return roomRepository.findAll().stream()
         .filter(room -> !reservedRoomIds.contains(room.getId()))
-        .collect(Collectors.toList());
+        .toList();
   }
 
-  public Reservation reserveRoomByDates(ReservationDTO reservationDTO) {
-    if (isRoomAvailable(
-        reservationDTO.getRoomId(), reservationDTO.getCheckIn(), reservationDTO.getCheckOut())) {
-      return reservationRepository.save(reservationDTO.toEntity());
+  public Reservation reserveRoom(ReservationDTO reservationDTO) {
+    boolean isRoomAvailable = !reservationRepository.isRoomReserved(reservationDTO);
+    if (!isRoomAvailable) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, RESERVATION_ALREADY_EXISTS);
     }
-    return null;
+    return reservationRepository.save(reservationDTO.toEntity());
   }
 
   public void cancelReservation(Long reservationId) {
+    if (!reservationRepository.existsById(reservationId)) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, RESERVATION_DELETE_DOES_NOT_EXIST);
+    }
     reservationRepository.deleteById(reservationId);
-  }
-
-  private boolean isRoomAvailable(Long roomId, LocalDate checkIn, LocalDate checkOut) {
-    return reservationRepository.findAll().stream()
-        .filter(reservation -> reservation.getRoomId().equals(roomId))
-        .noneMatch(
-            reservation ->
-                areDatesOverlapping(
-                    reservation.getCheckIn(), reservation.getCheckOut(), checkIn, checkOut));
-  }
-
-  private Set<Long> getReservedRoomIds(LocalDate checkIn, LocalDate checkOut) {
-    return reservationRepository.findAll().stream()
-        .filter(
-            reservation ->
-                areDatesOverlapping(
-                    reservation.getCheckIn(), reservation.getCheckOut(), checkIn, checkOut))
-        .map(Reservation::getRoomId)
-        .collect(Collectors.toSet());
   }
 }

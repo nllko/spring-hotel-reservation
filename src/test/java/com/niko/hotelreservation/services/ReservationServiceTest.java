@@ -1,5 +1,6 @@
 package com.niko.hotelreservation.services;
 
+import com.niko.hotelreservation.DTOs.PeriodDTO;
 import com.niko.hotelreservation.DTOs.ReservationDTO;
 import com.niko.hotelreservation.entities.Reservation;
 import com.niko.hotelreservation.entities.Room;
@@ -11,11 +12,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static com.niko.hotelreservation.utils.LocalDateUtils.areDatesOverlapping;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -24,8 +29,7 @@ class ReservationServiceTest {
 
   private List<Room> allRooms;
   private List<Reservation> allReservations;
-  private LocalDate checkIn;
-  private LocalDate checkOut;
+  private PeriodDTO period;
   private ReservationDTO reservationDTO;
 
   @InjectMocks private ReservationService reservationService;
@@ -38,13 +42,13 @@ class ReservationServiceTest {
   void setUp() {
     allRooms = createRooms(5);
     allReservations = new ArrayList<>();
-    setDates(LocalDate.of(2024, 11, 1), LocalDate.of(2024, 11, 10));
+    setPeriod(LocalDate.of(2024, 11, 1), LocalDate.of(2024, 11, 10));
   }
 
   @Test
   void testGetAvailableRooms_NoReservations_ShouldBeNotEmpty() {
     mockRooms(allRooms);
-    mockReservations(allReservations);
+    mockReservedRoomIds();
 
     List<Room> availableRooms = getAvailableRooms();
 
@@ -54,8 +58,8 @@ class ReservationServiceTest {
   @Test
   void testGetAvailableRooms_ReservationPresentOnSameDate_ShouldNotContainReservedRoom() {
     mockRooms(allRooms);
-    addReservation(0L, checkIn, checkOut);
-    mockReservations(allReservations);
+    addReservation(0L, period);
+    mockReservedRoomIds();
 
     List<Room> availableRooms = getAvailableRooms();
 
@@ -66,8 +70,9 @@ class ReservationServiceTest {
   void
       testGetAvailableRooms_ReservationPresentOnDifferentDate_ShouldContainRoomWithDifferentDates() {
     mockRooms(allRooms);
-    addReservation(0L, checkIn.plusMonths(1), checkOut.plusMonths(1));
-    mockReservations(allReservations);
+    addReservation(
+        0L, new PeriodDTO(period.getCheckIn().plusMonths(1), period.getCheckOut().plusMonths(1)));
+    mockReservedRoomIds();
 
     List<Room> availableRooms = getAvailableRooms();
 
@@ -77,8 +82,8 @@ class ReservationServiceTest {
   @Test
   void testGetAvailableRooms_AllRoomsReserved_ShouldReturnEmptyList() {
     mockRooms(allRooms);
-    addReservationsForAllRooms(checkIn, checkOut);
-    mockReservations(allReservations);
+    addReservationsForAllRooms(period);
+    mockReservedRoomIds();
 
     List<Room> availableRooms = getAvailableRooms();
 
@@ -87,8 +92,10 @@ class ReservationServiceTest {
 
   @Test
   void testReserveRoom_NoReservations_ShouldReturnReservation() {
-    makeReservationDTO(0L, checkIn, checkOut);
-    Reservation expectedReservation = new Reservation(0L, 0L, checkIn, checkOut);
+    mockIsRoomReserved(false);
+    makeReservationDTO(0L, period);
+    Reservation expectedReservation =
+        new Reservation(0L, 0L, period.getCheckIn(), period.getCheckOut());
     when(reservationRepository.save(any(Reservation.class))).thenReturn(expectedReservation);
 
     Reservation reservation = reserveRoom();
@@ -97,14 +104,11 @@ class ReservationServiceTest {
   }
 
   @Test
-  void testReserveRoom_ReservationPresent_ShouldReturnNull() {
-    addReservation(0L, checkIn, checkOut);
-    mockReservations(allReservations);
-    makeReservationDTO(0L, checkIn, checkOut);
+  void testReserveRoom_ReservationPresent_ShouldReturnException() {
+    mockIsRoomReserved(true);
+    makeReservationDTO(0L, period);
 
-    Reservation reservation = reserveRoom();
-
-    assertNull(reservation);
+    assertThrows(ResponseStatusException.class, this::reserveRoom);
   }
 
   private List<Room> createRooms(int count) {
@@ -117,22 +121,22 @@ class ReservationServiceTest {
     return rooms;
   }
 
-  private void setDates(LocalDate checkIn, LocalDate checkOut) {
-    this.checkIn = checkIn;
-    this.checkOut = checkOut;
+  private void setPeriod(LocalDate checkIn, LocalDate checkOut) {
+    this.period = new PeriodDTO(checkIn, checkOut);
   }
 
-  private void makeReservationDTO(Long roomId, LocalDate checkIn, LocalDate checkOut) {
-    reservationDTO = new ReservationDTO(roomId, checkIn, checkOut);
+  private void makeReservationDTO(Long roomId, PeriodDTO period) {
+    reservationDTO = new ReservationDTO(roomId, period);
   }
 
-  private void addReservation(Long roomId, LocalDate checkIn, LocalDate checkOut) {
-    allReservations.add(new Reservation(0L, roomId, checkIn, checkOut));
+  private void addReservation(Long roomId, PeriodDTO period) {
+    allReservations.add(new Reservation(0L, roomId, period.getCheckIn(), period.getCheckOut()));
   }
 
-  private void addReservationsForAllRooms(LocalDate checkIn, LocalDate checkOut) {
+  private void addReservationsForAllRooms(PeriodDTO period) {
     for (Room room : allRooms) {
-      allReservations.add(new Reservation(null, room.getId(), checkIn, checkOut));
+      allReservations.add(
+          new Reservation(null, room.getId(), period.getCheckIn(), period.getCheckOut()));
     }
   }
 
@@ -140,16 +144,31 @@ class ReservationServiceTest {
     when(roomRepository.findAll()).thenReturn(rooms);
   }
 
-  private void mockReservations(List<Reservation> reservations) {
-    when(reservationRepository.findAll()).thenReturn(reservations);
+  private void mockReservedRoomIds() {
+    Set<Long> reservedIds =
+        allReservations.stream()
+            .filter(
+                reservation ->
+                    areDatesOverlapping(
+                        period.getCheckIn(),
+                        period.getCheckOut(),
+                        reservation.getCheckIn(),
+                        reservation.getCheckOut()))
+            .map(Reservation::getRoomId)
+            .collect(Collectors.toSet());
+    when(reservationRepository.findReservedRoomIds(period)).thenReturn(reservedIds);
+  }
+
+  private void mockIsRoomReserved(boolean reserved) {
+    when(reservationRepository.isRoomReserved(any(ReservationDTO.class))).thenReturn(reserved);
   }
 
   private List<Room> getAvailableRooms() {
-    return reservationService.getAvailableRoomsByDates(checkIn, checkOut);
+    return reservationService.getAvailableRooms(period);
   }
 
   private Reservation reserveRoom() {
-    return reservationService.reserveRoomByDates(reservationDTO);
+    return reservationService.reserveRoom(reservationDTO);
   }
 
   private boolean containsRoomWithId(List<Room> rooms, Long roomId) {

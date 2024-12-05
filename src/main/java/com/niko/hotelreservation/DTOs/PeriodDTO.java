@@ -1,24 +1,26 @@
 package com.niko.hotelreservation.DTOs;
 
+import com.niko.hotelreservation.validation.validPeriod.ValidPeriod;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
-import lombok.extern.jackson.Jacksonized;
 
 import java.time.LocalDate;
+
+import static com.niko.hotelreservation.constants.Messages.*;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Jacksonized
 @Builder
+@ValidPeriod
 public class PeriodDTO {
-  @NotNull(message = "{validation.reservationDto.dates.empty}")
-  @Future(message = "{validation.reservationDto.dates.past}")
+  @NotNull(message = VALIDATION_CHECKIN_EMPTY)
+  @Future(message = VALIDATION_CHECKIN_PAST)
   private LocalDate checkIn;
 
-  @NotNull(message = "{validation.reservationDto.dates.empty}")
-  @Future(message = "{validation.reservationDto.dates.past}")
+  @NotNull(message = VALIDATION_CHECKOUT_EMPTY)
+  @Future(message = VALIDATION_CHECKOUT_PAST)
   private LocalDate checkOut;
 }

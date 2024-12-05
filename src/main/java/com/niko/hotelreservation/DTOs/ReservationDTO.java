@@ -1,13 +1,15 @@
 package com.niko.hotelreservation.DTOs;
 
 import com.niko.hotelreservation.entities.Reservation;
-import jakarta.validation.constraints.Future;
+import com.niko.hotelreservation.validation.validPeriod.ValidPeriod;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
 
 import java.time.LocalDate;
+
+import static com.niko.hotelreservation.constants.Messages.*;
 
 @Getter
 @Setter
@@ -16,23 +18,27 @@ import java.time.LocalDate;
 @Jacksonized
 @Builder
 public class ReservationDTO {
-  @NotNull(message = "{validation.reservationDto.id.empty}")
-  @Min(value = 0L, message = "{validation.reservationDto.id.min}")
+  @NotNull(message = VALIDATION_ID_EMPTY)
+  @Min(value = 0L, message = VALIDATION_ID_NEGATIVE)
   private Long roomId;
 
-  @NotNull(message = "{validation.reservationDto.dates.empty}")
-  @Future(message = "{validation.reservationDto.dates.past}")
-  private LocalDate checkIn;
-
-  @NotNull(message = "{validation.reservationDto.dates.empty}")
-  @Future(message = "{validation.reservationDto.dates.past}")
-  private LocalDate checkOut;
+  @NotNull(message = VALIDATION_PERIOD_EMPTY)
+  @ValidPeriod
+  private PeriodDTO period;
 
   public Reservation toEntity() {
     Reservation reservation = new Reservation();
     reservation.setRoomId(roomId);
-    reservation.setCheckIn(checkIn);
-    reservation.setCheckOut(checkOut);
+    reservation.setCheckIn(period.getCheckIn());
+    reservation.setCheckOut(period.getCheckOut());
     return reservation;
+  }
+
+  public LocalDate getCheckIn() {
+    return period.getCheckIn();
+  }
+
+  public LocalDate getCheckOut() {
+    return period.getCheckOut();
   }
 }
