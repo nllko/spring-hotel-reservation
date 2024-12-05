@@ -93,6 +93,7 @@ class ReservationServiceTest {
   @Test
   void testReserveRoom_NoReservations_ShouldReturnReservation() {
     mockIsRoomReserved(false);
+    mockRoomExistsById(true);
     makeReservationDTO(0L, period);
     Reservation expectedReservation =
         new Reservation(0L, 0L, period.getCheckIn(), period.getCheckOut());
@@ -105,7 +106,6 @@ class ReservationServiceTest {
 
   @Test
   void testReserveRoom_ReservationPresent_ShouldReturnException() {
-    mockIsRoomReserved(true);
     makeReservationDTO(0L, period);
 
     assertThrows(ResponseStatusException.class, this::reserveRoom);
@@ -161,6 +161,10 @@ class ReservationServiceTest {
 
   private void mockIsRoomReserved(boolean reserved) {
     when(reservationRepository.isRoomReserved(any(ReservationDTO.class))).thenReturn(reserved);
+  }
+
+  private void mockRoomExistsById(boolean exists) {
+    when(roomRepository.existsById(anyLong())).thenReturn(exists);
   }
 
   private List<Room> getAvailableRooms() {

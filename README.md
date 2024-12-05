@@ -33,8 +33,8 @@ A simple hotel reservation system built using Spring Boot. This application allo
 
 ```json
 {
-  "startDate": "YYYY-MM-DD",
-  "endDate": "YYYY-MM-DD"
+  "startDate": "yyyy-MM-dd",
+  "endDate": "yyyy-MM-dd"
 }
 ```
 
@@ -107,13 +107,17 @@ Path Variable:
 Response:
 A confirmation message indicating that the reservation has been canceled.
 
-How to Run
+How to Run:
+
+0. Have the following installed on your system:
+- Java JDK
+- Maven
 
 1. Clone the repository:
 
 ```
 git clone https://github.com/nllko/spring-hotel-reservation.git
-cd hotel-reservation
+cd spring-hotel-reservation
 ```
 
 2.Build the application:
